@@ -198,6 +198,295 @@ payment-service/
 
 ---
 
+## 🧠 Part 2.5：项目里用到的 Java 语法速查（很重要！）
+
+> 下面这些语法在项目**每个文件**都出现，看不懂就没法读代码。
+> 如果你都记得，跳过这节；忘了就仔细看。
+
+### 1. 泛型 Generics — `<T>`, `<?>`, `<String>`
+
+**泛型是什么？** 给类加一个"类型参数"，编译器帮你检查类型安全。
+
+```java
+// ——— 你肯定用过的 ArrayList ———
+
+// ❌ 不用泛型：什么都能放，取出来要强转，容易炸
+ArrayList list = new ArrayList();
+list.add("hello");
+list.add(123);                    // 不报错！但类型混乱
+String s = (String) list.get(1);  // 💥 运行时 ClassCastException！
+
+// ✅ 用泛型：限定只能放 String
+ArrayList<String> list = new ArrayList<>();
+list.add("hello");
+list.add(123);  // ❌ 编译器直接报错！不让你放 int
+String s = list.get(0);  // ✅ 不需要强转，编译器知道一定是 String
+```
+
+**项目里的泛型用法：**
+
+```java
+// ——— ResponseEntity<T> ———
+// Spring 的 HTTP 响应包装类，T 就是 body 的类型
+
+ResponseEntity<String>     // body 一定是 String
+ResponseEntity<Payment>    // body 一定是 Payment 对象
+ResponseEntity<?>          // body 可以是任何类型（通配符）
+
+// 为什么项目里用 <?> ？因为同一个方法可能返回不同类型：
+@GetMapping("/{orderId}")
+public ResponseEntity<?> getPaymentByOrderId(@PathVariable String orderId) {
+    // 成功时 → 返回 Payment 对象
+    // 失败时 → 可能返回 String 错误信息
+    // 所以用 <?> 表示"我不限定返回什么类型"
+    return ResponseEntity.ok(paymentService.getPaymentByOrderId(orderId));
+}
+
+// ResponseEntity.ok(...) 的意思：
+// = new ResponseEntity<>(数据, HttpStatus.OK)
+// = 返回 HTTP 200 状态码 + body 数据
+```
+
+**泛型符号总结（面试常考）：**
+
+```java
+<T>              // 定义时用："这里有个类型参数叫 T"
+<String>         // 使用时用："T 是 String"
+<?>              // 使用时用："T 是什么我不关心"，通配符
+<? extends T>    // "只能是 T 或 T 的子类"（上界）
+<? super T>      // "只能是 T 或 T 的父类"（下界）
+
+// 面试关键一句话：
+// "Java 泛型是编译时的类型检查，运行时会被擦除（Type Erasure）"
+// 意思是：ArrayList<String> 编译后变成 ArrayList，泛型信息消失了
+```
+
+---
+
+### 2. Lombok 注解 — 项目里几乎每个类都用
+
+**Lombok 是什么？** 一个帮你自动生成代码的工具，减少样板代码。
+
+```java
+// ——— @Data ———
+// 自动生成：getter, setter, toString, equals, hashCode
+
+// ❌ 不用 Lombok 你要写这么多：
+public class Payment {
+    private String id;
+    private Double amount;
+    
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+    public Double getAmount() { return amount; }
+    public void setAmount(Double amount) { this.amount = amount; }
+    public String toString() { return "Payment(id=" + id + ", amount=" + amount + ")"; }
+    public boolean equals(Object o) { ... }
+    public int hashCode() { ... }
+}
+
+// ✅ 用 @Data 一个注解搞定：
+@Data  // 自动生成上面所有方法！
+public class Payment {
+    private String id;
+    private Double amount;
+}
+```
+
+```java
+// ——— @RequiredArgsConstructor ———
+// 自动生成一个构造方法，参数是所有 final 字段
+
+// 项目里的 PaymentController 写了这个：
+@RestController
+@RequiredArgsConstructor  // ← 这个注解
+public class PaymentController {
+    private final PaymentService paymentService;  // ← final 字段
+}
+
+// Lombok 自动帮你生成了：
+public PaymentController(PaymentService paymentService) {
+    this.paymentService = paymentService;
+}
+
+// 为什么不手写构造方法？
+// Spring 看到只有一个构造方法 → 自动把 PaymentService 注入进来
+// 这就是"构造器注入"，Spring 推荐的方式
+// 所以 @RequiredArgsConstructor + private final 字段 = 依赖注入
+```
+
+```java
+// ——— 其他常用 Lombok 注解 ———
+
+@Getter          // 只生成 getter（不生成 setter）
+@Setter          // 只生成 setter
+@NoArgsConstructor  // 生成无参构造 public Payment() {}
+@AllArgsConstructor // 生成全参构造 public Payment(String id, Double amount) {}
+@Builder         // 生成 Builder 模式（后面讲）
+```
+
+---
+
+### 3. Optional — 解决空指针
+
+```java
+// ——— 项目里 Repository 经常返回 Optional ———
+
+// 项目代码（payment-service）：
+public interface PaymentRepository extends JpaRepository<Payment, String> {
+    Optional<Payment> findByOrderId(String orderId);
+    //       ↑ 表示"可能有值，也可能没有"
+}
+
+// ❌ 不用 Optional（传统写法）：
+Payment payment = paymentRepo.findByOrderId("abc123");
+if (payment == null) {  // 如果忘了检查 → NullPointerException 💥
+    throw new RuntimeException("Not found");
+}
+String id = payment.getId();
+
+// ✅ 用 Optional（项目里的写法）：
+Payment payment = paymentRepo.findByOrderId("abc123")
+    .orElseThrow(() -> new RuntimeException("Payment not found"));
+//   ↑ 如果有值 → 直接返回 Payment
+//   ↑ 如果没有 → 自动抛异常
+
+// Optional 常用方法：
+optional.isPresent()          // 有值吗？true/false
+optional.get()                // 取值（不安全，可能报错）
+optional.orElse(默认值)        // 有值就取，没有就用默认值
+optional.orElseThrow(异常)    // 有值就取，没有就抛异常 ← 项目最常用
+optional.map(x -> ...)        // 有值的话做转换
+
+// 这里的 () -> 是 Lambda 表达式，下面讲 ↓
+```
+
+---
+
+### 4. Lambda 表达式 — `->` 箭头写法
+
+```java
+// Lambda 就是"匿名函数"的简写
+
+// ❌ 传统写法（匿名内部类）：
+Runnable task = new Runnable() {
+    @Override
+    public void run() {
+        System.out.println("Hello");
+    }
+};
+
+// ✅ Lambda 简写：
+Runnable task = () -> System.out.println("Hello");
+// () 是参数列表（这里没参数）
+// -> 表示"执行"
+// 右边是方法体
+
+// 项目里的用法：
+.orElseThrow(() -> new RuntimeException("Not found"))
+//             ↑ 无参数 → 执行 → 创建一个异常
+
+// Stream API 里也大量使用：
+List<String> names = users.stream()
+    .map(user -> user.getName())    // 每个 user → 取出 name
+    .filter(name -> name != null)   // 只保留不为 null 的
+    .collect(Collectors.toList());  // 收集成 List
+```
+
+---
+
+### 5. `@PathVariable` 和 `@RequestBody` — 从请求取数据
+
+```java
+// 项目里的 PaymentController：
+
+// @PathVariable — 从 URL 路径取值
+@GetMapping("/{orderId}")
+public ResponseEntity<?> getPaymentByOrderId(@PathVariable String orderId) { ... }
+// 请求：GET /api/v1/payments/abc123
+// orderId 自动变成 "abc123"
+
+// @RequestBody — 从请求 Body 取 JSON，自动转成 Java 对象
+// 项目里 identity-service 的 AuthController：
+@PostMapping("/register")
+public ResponseEntity<ApiResponse<String>> addNewUser(@RequestBody SignUpRequest signUpRequest) { ... }
+// 请求：POST /api/v1/auth/register
+// Body: {"name":"Test User","email":"test@example.com","password":"123"}
+// Spring 自动把 JSON → SignUpRequest 对象：
+//   signUpRequest.getName() = "Test User"
+//   signUpRequest.getEmail() = "test@example.com"
+//   signUpRequest.getPassword() = "123"
+
+// @RequestParam — 从 URL 参数取值
+@GetMapping("/validate")
+public ResponseEntity<?> validateToken(@RequestParam("token") String token) { ... }
+// 请求：GET /api/v1/auth/validate?token=eyJhbGciOiJ...
+// token 自动变成 "eyJhbGciOiJ..."
+```
+
+---
+
+### 6. `private final` — 为什么字段要加 final？
+
+```java
+@Service
+@RequiredArgsConstructor
+public class PaymentServiceImpl implements PaymentService {
+    private final PaymentRepository paymentRepository;  // ← final
+    private final OrderProducer orderProducer;           // ← final
+    private final PaymentRedis paymentRedis;             // ← final
+}
+
+// 为什么用 private final？
+// 1. private → 外部不能直接访问（封装）
+// 2. final   → 一旦赋值就不能改（不可变，线程安全）
+// 3. final 字段只能通过构造方法赋值
+// 4. @RequiredArgsConstructor 会为所有 final 字段生成构造方法
+// 5. Spring 自动调用这个构造方法，把依赖注入进来
+
+// 等效于：
+public PaymentServiceImpl(PaymentRepository paymentRepository,
+                          OrderProducer orderProducer,
+                          PaymentRedis paymentRedis) {
+    this.paymentRepository = paymentRepository;  // Spring 自动传入
+    this.orderProducer = orderProducer;           // Spring 自动传入
+    this.paymentRedis = paymentRedis;             // Spring 自动传入
+}
+```
+
+---
+
+### 7. 接口 + 实现 — 为什么 Service 要拆成接口和 Impl？
+
+```java
+// 项目里你会看到 Service 都这样拆：
+// PaymentService.java ← 接口（定义"能做什么"）
+// PaymentServiceImpl.java ← 实现类（定义"怎么做"）
+
+// 接口：
+public interface PaymentService {
+    Payment getPaymentByOrderId(String orderId);
+    void refundPayment(String paymentId);
+}
+
+// 实现：
+@Service  // 告诉 Spring：这个是真正干活的
+public class PaymentServiceImpl implements PaymentService {
+    @Override
+    public Payment getPaymentByOrderId(String orderId) {
+        // 具体的业务逻辑...
+    }
+}
+
+// 为什么要拆开？（面试必问）
+// 1. 解耦：Controller 只依赖接口，不关心具体实现
+// 2. 可测试：测试时可以用 Mock 替换真实实现
+// 3. 可替换：比如支付换成微信支付，只改 Impl 不改接口
+// 4. Spring AOP 需要接口来创建代理（事务、缓存等）
+```
+
+---
+
 ## 🎤 Part 3：面试官会怎么问？
 
 ---

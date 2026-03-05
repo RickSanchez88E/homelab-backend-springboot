@@ -36,7 +36,7 @@
 
 ```
                          ┌─────────────────────────────────────────┐
-                         │           API Gateway (8080)            │
+                         │           API Gateway (9191)            │
                          │    Spring Cloud Gateway + JWT Filter     │
                          └──────────────┬──────────────────────────┘
                                         │ 路由转发
@@ -145,7 +145,16 @@ done
 docker-compose up -d --build
 ```
 
-### Step 4: 验证服务健康
+### Step 4: 初始化数据库角色
+
+> ⚠️ **首次启动必须执行！** identity-service 的角色表默认为空，需要手动初始化。
+
+```bash
+docker exec -i mysql-identity-service mysql -uroot -proot user_db -e "
+INSERT INTO roles (name) VALUES ('Customer'), ('Employee'), ('Administrator');"
+```
+
+### Step 5: 验证服务健康
 
 ```bash
 # 查看所有容器状态
@@ -155,17 +164,21 @@ docker-compose ps
 open http://localhost:8761
 
 # 查看 API Gateway 路由
-curl http://localhost:8080/actuator/gateway/routes
+curl http://localhost:9191/actuator/gateway/routes
 
-# 注册用户
-curl -X POST http://localhost:8080/api/v1/auth/register \
+# 注册用户（角色可选：CUSTOMER, EMPLOYEE, ADMINISTRATOR）
+curl -X POST http://localhost:9191/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name":"Test User","email":"test@example.com","password":"password123","roles":["ROLE_USER"]}'
+  -d '{"name":"Test User","email":"test@example.com","password":"password123","roles":["CUSTOMER"]}'
 
-# 登录获取 JWT
-curl -X POST http://localhost:8080/api/v1/auth/login \
+# 登录获取 JWT（⚠️ 端点是 /token 不是 /login，username 用注册时的 name 字段）
+curl -X POST http://localhost:9191/api/v1/auth/token \
   -H "Content-Type: application/json" \
-  -d '{"username":"test@example.com","password":"password123"}'
+  -d '{"username":"Test User","password":"password123"}'
+
+# 用返回的 Token 访问受保护的 API
+curl -H "Authorization: Bearer <你的token>" \
+  http://localhost:9191/api/v1/products
 ```
 
 ---
@@ -177,7 +190,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 | 服务 | 端口 | 职责 |
 |------|------|------|
 | `service-registry` | 8761 | Eureka 服务注册中心 |
-| `api-gateway` | 8080 | 统一入口、JWT验证、路由 |
+| `api-gateway` | 9191 | 统一入口、JWT验证、路由 |
 | `product-service` | 8081 | 商品CRUD、库存管理、图片上传 |
 | `order-service` | 8082 | 订单创建、状态机流转、PayPal支付 |
 | `payment-service` | 8083 | 支付记录、退款处理 |

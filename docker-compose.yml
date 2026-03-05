@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # Zookeeper (Required by Kafka)
@@ -102,21 +102,23 @@ services:
     networks:
       - shop-network
 
-  mysql-stock-service:
-    image: mysql:8.0
-    container_name: mysql-stock-service
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: stock_db
-    ports:
-      - "3311:3306" # Host port 3308 mapped to container port 3306
-    volumes:
-      - mysql-stock-service-data:/var/lib/mysql
-    networks:
-      - shop-network
+  # mysql-stock-service:  # COMMENTED OUT - stock-service directory not present
+  #   image: mysql:8.0
+  #   container_name: mysql-stock-service
+  #   restart: always
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: stock_db
+  #   ports:
+  #     - "3311:3306"
+  #   volumes:
+  #     - mysql-stock-service-data:/var/lib/mysql
+  #   networks:
+  #     - shop-network
   # Eureka Server
   eureka-server:
+    build:
+      context: ./service-registry
     image: springboot-kafka-microservices/eureka-server:latest
     container_name: eureka-server
     depends_on:
@@ -130,6 +132,8 @@ services:
 
   # API Gateway
   api-gateway:
+    build:
+      context: ./api-gateway
     image: springboot-kafka-microservices/api-gateway:latest
     container_name: api-gateway
     depends_on:
@@ -146,6 +150,8 @@ services:
 
   # Order Service
   order-service:
+    build:
+      context: ./order-service
     image: springboot-kafka-microservices/order-service:latest
     container_name: order-service
     depends_on:
@@ -165,6 +171,8 @@ services:
       - shop-network
 
   email-service:
+    build:
+      context: ./email-service
     image: springboot-kafka-microservices/email-service:latest
     container_name: email-service
     depends_on:
@@ -180,6 +188,8 @@ services:
       - shop-network
 
   payment-service:
+    build:
+      context: ./payment-service
     image: springboot-kafka-microservices/payment-service:latest
     container_name: payment-service
     depends_on:
@@ -199,6 +209,8 @@ services:
       - shop-network
 
   product-service:
+    build:
+      context: ./product-service
     image: springboot-kafka-microservices/product-service:latest
     container_name: product-service
     depends_on:
@@ -220,26 +232,30 @@ services:
     networks:
       - shop-network
 
-  stock-service:
-    image: springboot-kafka-microservices/stock-service:latest
-    container_name: stock-service
-    depends_on:
-      - kafka
-      - mysql-stock-service
-      - eureka-server
-    ports:
-      - "8081:8081"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-stock-service:3306/stock_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      SPRING_PROFILES_ACTIVE: docker
-    networks:
-      - shop-network
+  # stock-service:  # COMMENTED OUT - stock-service directory not present in repo
+  #   build:
+  #     context: ./stock-service
+  #   image: springboot-kafka-microservices/stock-service:latest
+  #   container_name: stock-service
+  #   depends_on:
+  #     - kafka
+  #     - mysql-stock-service
+  #     - eureka-server
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     SPRING_DATASOURCE_URL: jdbc:mysql://mysql-stock-service:3306/stock_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+  #     SPRING_DATASOURCE_USERNAME: root
+  #     SPRING_DATASOURCE_PASSWORD: root
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+  #     SPRING_PROFILES_ACTIVE: docker
+  #   networks:
+  #     - shop-network
   # Identity Service
   identity-service:
+    build:
+      context: ./identity-service
     image: springboot-kafka-microservices/identity-service:latest
     container_name: identity-service
     depends_on:
@@ -263,7 +279,7 @@ volumes:
   mysql-identity-service-data:
   mysql-product-service-data:
   mysql-payment-service-data:
-  mysql-stock-service-data:
+  # mysql-stock-service-data:  # COMMENTED OUT - stock-service not present
   redis-data:
 networks:
   shop-network:

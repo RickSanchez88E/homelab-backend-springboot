@@ -1,6 +1,5 @@
 package net.javaguides.common_lib.dto.order;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,6 +12,7 @@ import java.math.BigDecimal;
 public class OrderItemDTO {
     private Long id;
     private String productId;
+    private Long variantId;
     private Integer quantity;
     private BigDecimal price;
 }

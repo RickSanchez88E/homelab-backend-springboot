@@ -196,6 +196,7 @@ curl -H "Authorization: Bearer <你的token>" \
 | `payment-service` | 8083 | 支付记录、退款处理 |
 | `email-service` | 8084 | 消费Kafka事件、发送通知邮件 |
 | `identity-service` | 8085 | 用户注册登录、JWT生成、角色管理 |
+| `review-service` | 8086 | 商品评价CRUD、分页查询、性能优化示例 |
 
 ### common-lib 共享模型
 
@@ -1158,6 +1159,38 @@ Week 4: 生产化
 ```
 
 ---
+
+## 🔧 开发者工具
+
+### 脚手架生成器
+
+一键生成新微服务的完整代码骨架：
+
+```bash
+# 用法: ./new-service.sh <服务名> <端口> <数据库端口>
+./new-service.sh review 8086 3312    # 生成 review-service
+./new-service.sh wishlist 8087 3313  # 生成 wishlist-service
+```
+
+自动生成：Application、Entity、Repository、Service（接口+实现）、Controller、DTO、配置文件、Dockerfile。
+
+### 数据填充脚本
+
+```bash
+python3 scripts/seed-data.py small    # 1,000 条（开发调试）
+python3 scripts/seed-data.py medium   # 100,000 条（性能测试）
+python3 scripts/seed-data.py large    # 1,000,000 条（压力测试）
+```
+
+### 压力测试
+
+```bash
+brew install wrk
+wrk -t10 -c200 -d10s "http://localhost:8086/api/v1/reviews?page=0&size=20"
+```
+
+---
+
 
 ## 🤝 贡献指南
 
